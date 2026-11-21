@@ -1,239 +1,92 @@
 # Mitigating Information Leakage in Validation Protocols
 
-## Project Overview
+A reproducible machine-learning demonstration of how **target leakage during feature selection can inflate holdout performance**, and how to prevent it with a scikit-learn pipeline.
 
-This project explores the problem of **information leakage during model validation** and how it can lead to overly optimistic machine learning performance.
+## Why this matters
 
-Information leakage occurs when information from outside the training data, particularly from the validation or test set, influences the model training process. This can make a model appear more accurate during evaluation than it would when applied to genuinely unseen data.
+A model evaluation is only credible when holdout data remains unseen throughout model development. Leakage occurs when information from validation or test observations influences preprocessing, feature selection, model fitting, or tuning.
 
-The project demonstrates how to identify and mitigate information leakage by applying appropriate data-splitting, preprocessing, and validation techniques.
+This repository isolates one common failure: selecting features using the complete dataset and its labels before evaluating on a holdout set.
 
-## Objectives
+## Experiment
 
-The main objectives of this project are to:
+The script generates a synthetic binary-classification dataset with 1,200 observations and 1,000 features. It compares two workflows using the same 70/30 stratified split and logistic-regression classifier.
 
-* Understand information leakage in machine learning.
-* Identify common sources of leakage during model development.
-* Demonstrate how leakage can artificially improve model performance.
-* Compare inappropriate and appropriate validation approaches.
-* Apply a leakage-free validation protocol.
-* Evaluate the final model using genuinely unseen data.
+| Workflow | Feature selection | Holdout accuracy | Holdout ROC-AUC |
+|---|---|---:|---:|
+| Leakage-prone (incorrect) | Fit on all observations and labels before splitting | 0.7083 | 0.7824 |
+| Leakage-free (correct) | Fit only on training data inside a pipeline | 0.6528 | 0.7199 |
 
----
+These results use the fixed random seed (42) in the included script. They illustrate this synthetic experiment; they are not evidence of performance on a real-world or financial dataset.
 
-## Dataset
+## What causes the leakage?
 
-The project uses a supervised machine learning dataset containing **[insert dataset name]**.
+The incorrect workflow fits SelectKBest on the complete feature matrix and target vector before respecting the train/test boundary. The selector therefore uses holdout labels to decide which features appear most predictive. The classifier is then evaluated on data that has already influenced feature selection.
 
-The dataset consists of **[insert number] observations** and **[insert number] features**, with the target variable being **[insert target variable]**.
+The correct workflow places feature selection, scaling, and classification in a single Pipeline. Each learned transformation is fitted on training data only.
 
-### Dataset Characteristics
+## Run the experiment
 
-| Component       | Description                   |
-| --------------- | ----------------------------- |
-| Dataset         | [Dataset name]                |
-| Observations    | [Number of rows]              |
-| Features        | [Number of features]          |
-| Target Variable | [Target variable]             |
-| Problem Type    | [Classification / Regression] |
-| Missing Values  | [Yes / No]                    |
-| Data Source     | [Source]                      |
+Requirements: Python 3.9 or later and the packages in requirements.txt.
 
-The dataset is divided into training, validation, and test sets to ensure that information from unseen observations does not influence model training.
+Clone and set up:
 
-### Data Preparation
-
-The following preprocessing steps are applied:
-
-* Data inspection and quality checks.
-* Handling of missing values where required.
-* Separation of features and target variable.
-* Train-validation-test splitting.
-* Feature scaling where required.
-* Feature transformation using training data only.
-
-A key principle of this project is that preprocessing parameters are **fitted exclusively on the training data** and subsequently applied to the validation and test datasets.
-
-This prevents information from the validation or test sets from leaking into the training process.
-
----
-
-## Model
-
-The project uses a **[insert model name]** machine learning model to demonstrate the effect of information leakage on model evaluation.
-
-### Model Configuration
-
-| Parameter         | Value                                   |
-| ----------------- | --------------------------------------- |
-| Model             | [Model name]                            |
-| Problem Type      | [Classification / Regression]           |
-| Input Features    | [Number]                                |
-| Target            | [Target variable]                       |
-| Validation Method | [Hold-out / K-Fold / Time Series Split] |
-| Evaluation Metric | [Accuracy / F1 / RMSE / MAE / etc.]     |
-
-The model is trained using the training dataset and evaluated using the validation dataset during model development.
-
-The test dataset remains isolated and is used only for the final evaluation.
-
----
-
-## Validation Protocol
-
-The project compares two approaches:
-
-### 1. Leakage-Prone Validation
-
-The first approach demonstrates how information can unintentionally move from the validation dataset into the training process.
-
-Examples include:
-
-* Scaling the entire dataset before splitting.
-* Performing feature selection using the complete dataset.
-* Using the test set during model selection.
-* Repeatedly tuning the model against the test set.
-
-These practices can result in performance estimates that are higher than the model's actual generalisation performance.
-
-### 2. Leakage-Free Validation
-
-The second approach implements a proper validation protocol.
-
-The workflow is:
-
-```text
-Raw Dataset
-     │
-     ▼
-Train / Validation / Test Split
-     │
-     ├── Training Data
-     │       │
-     │       ▼
-     │   Fit Preprocessing
-     │       │
-     │       ▼
-     │   Train Model
-     │
-     ├── Validation Data
-     │       │
-     │       ▼
-     │   Transform Using
-     │   Training Parameters
-     │       │
-     │       ▼
-     │   Evaluate Model
-     │
-     └── Test Data
-             │
-             ▼
-       Final Evaluation Only
+```bash
+git clone https://github.com/Hillaryirungu/Mitigating-Information-Leakage-in-Validation-Protocols.git
+cd Mitigating-Information-Leakage-in-Validation-Protocols
+python -m venv .venv
 ```
 
-This ensures that validation and test information does not influence the model fitting process.
+Activate the environment:
 
----
+**macOS / Linux**
+```bash
+source .venv/bin/activate
+```
 
-## Experimental Setup
+**Windows PowerShell**
+```powershell
+.venv\\Scripts\\Activate.ps1
+```
 
-The experiments compare model performance under different validation protocols.
+Install and run:
 
-### Experiment 1 — Leakage-Prone Approach
+```bash
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+python leakage_demo.py
+```
 
-Preprocessing and/or feature-selection operations are performed before the dataset is separated into training and validation data.
+## Good validation practice
 
-The resulting performance demonstrates how leakage can produce an overly optimistic estimate.
+1. Split observations before fitting learned preprocessing or feature-selection steps.
+2. Fit transformations on training data only; apply the fitted transformations to validation and test data.
+3. Use pipelines so cross-validation refits every transformation within each training fold.
+4. Use validation data for model selection and tuning.
+5. Keep the final test set untouched until final evaluation.
+6. For time-dependent financial data, use chronological or walk-forward splits rather than random shuffling.
 
-### Experiment 2 — Leakage-Free Approach
+## Scope and limitations
 
-The dataset is first split into training, validation, and test sets.
+- The dataset is synthetic and generated locally; no external download is required.
+- The demonstration focuses on feature-selection leakage. Other leakage paths include imputation, scaling, feature engineering, target encoding, and repeated test-set tuning.
+- A higher score in the leakage-prone workflow is not a model improvement; it is a biased evaluation.
+- This is an educational demonstration, not an investment model or financial recommendation.
 
-Preprocessing is then fitted only on the training data.
-
-The same transformation is subsequently applied to the validation and test datasets.
-
-### Experiment 3 — Final Model Evaluation
-
-After model selection and tuning are completed, the final model is evaluated against the previously unseen test dataset.
-
-This provides a more realistic estimate of expected performance on new observations.
-
----
-
-## Evaluation Metrics
-
-Model performance is evaluated using **[insert metric(s)]**.
-
-Depending on the problem type, relevant metrics include:
-
-* Accuracy
-* Precision
-* Recall
-* F1 Score
-* ROC-AUC
-* Mean Absolute Error (MAE)
-* Mean Squared Error (MSE)
-* Root Mean Squared Error (RMSE)
-
-The primary metric used in this project is **[insert primary metric]**.
-
----
-
-## Results
-
-The experiments demonstrate the impact that information leakage can have on reported model performance.
-
-| Validation Approach    | Validation Performance | Test Performance |
-| ---------------------- | ---------------------: | ---------------: |
-| Leakage-Prone Approach |                [Value] |          [Value] |
-| Leakage-Free Approach  |                [Value] |          [Value] |
-
-The comparison illustrates the importance of maintaining a strict separation between training, validation, and test information.
-
-**Note:** The exact results are generated in the accompanying notebook.
-
----
-
-## Technologies Used
-
-* Python
-* Jupyter Notebook / Google Colab
-* NumPy
-* Pandas
-* Scikit-learn
-* Matplotlib
-
-## Project Structure
+## Project structure
 
 ```text
-Mitigating-Information-Leakage-in-Validation-Protocols/
-│
+.
 ├── README.md
-├── Mitigating_Information_Leakage.ipynb
-└── requirements.txt
+├── leakage_demo.py
+├── requirements.txt
+└── LICENSE
 ```
-
-## Key Takeaways
-
-* Information leakage can produce artificially high model performance.
-* The test dataset should remain completely isolated until final evaluation.
-* Preprocessing should be fitted only on training data.
-* Feature selection should not use information from validation or test datasets.
-* Cross-validation must be implemented carefully to avoid leakage.
-* Validation protocols should reflect the way the model will be used on unseen data.
-* Proper validation improves the reliability, reproducibility, and credibility of machine learning results.
-
-## Conclusion
-
-This project demonstrates why validation design is as important as model selection.
-
-A model may achieve strong validation results while performing substantially differently on genuinely unseen data if information leakage occurs during preprocessing, feature selection, model tuning, or validation.
-
-By enforcing a strict separation between training, validation, and test information, the resulting performance estimate becomes more representative of real-world model generalisation.
 
 ## Author
 
-**Hillary Irungu**
+**Hillary Irungu** · [GitHub](https://github.com/Hillaryirungu) · [Portfolio](https://hillaryirungu.github.io)
 
-This project forms part of my ongoing work and learning in **Machine Learning, Deep Learning, and Financial Engineering**.
+## License
+
+Released under the MIT License. See LICENSE.
